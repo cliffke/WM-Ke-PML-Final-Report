@@ -1,0 +1,128 @@
+---
+title: "Practical Machine Learning Final Report"
+author: "WM Ke"
+date: '20160322'
+output: word_document
+---
+
+#Background   
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).  
+
+#Data  
+
+The training data for this project are [available here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+```{r,cache=TRUE}
+setwd("F:/R/8_Machine Learning HW/PML_Final/")
+
+download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", method="curl",destfile = "train.csv")
+download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", method="curl",destfile = "test.csv")
+
+train<-read.csv(file="train.csv",na.strings = "NA"); test<-read.csv(file ="test.csv",na.strings = "NA")
+```
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.  
+
+
+
+#What you should submit  
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.  
+
+
+#Reproducibility  
+
+Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis.  
+
+
+#Data Processsing  
+I first check the data structure of training file and found there are lots of blank or NA column in the dataset which would not do any good on prediction so I remove them (while there are 90% of row with blank or NA). The first 7 column is the personal identifying information and they were also removed.  
+The processed taining file was divided into two file with ratio of 3:1 : trainsub_Sub and trainsub_Vali, one for model trianing and one for validation use.
+
+```{r,cache=TRUE}
+library(caret);
+
+# remove column with too much NA and blank
+trainsub<-train[,!colSums(is.na(train) | train=="" )/nrow(train)>=0.9 ]
+testsub<-test[,!colSums(is.na(test) | test=="" )/nrow(test)>=0.9 ]
+
+# remove the first 7 colonm with contain non-featuring information
+trainsub<-trainsub[,-c(1:7)];testsub<-testsub[,-c(1:7)]
+
+# Subset training data into traning and validation use sub
+trainsub_Index<-createDataPartition(y=trainsub$classe, p=0.75, list=FALSE)
+trainsub_Sub=trainsub[trainsub_Index,];trainsub_Vali=trainsub[-trainsub_Index,]
+```
+
+#Explortory ploting  
+There are 52 variable could be use to predict the type of action. I can only check the distibution of each type of motion (classe) 
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+
+```{r,cache=TRUE}
+qplot(trainsub_Sub$classe,main="Counts of Motions Classes",xlab="Class",ylab="Count")
+```
+
+#Model fit 1: Random forest  
+```{r,cache=TRUE}
+# Model fit
+library(randomForest)
+mf_1<-randomForest(classe~. ,data=trainsub_Sub, method="class")
+
+#Plot
+plot(mf_1, log="y")
+varImpPlot(mf_1)
+
+#Predict
+p1_mf_1<-predict(mf_1,trainsub_Vali)
+confusionMatrix(trainsub_Vali$classe,p1_mf_1)
+
+```
+
+#Model fit 2: Boosting with trees
+```{r, results='hide', cache=TRUE }
+mf_2<-train(classe~. ,data=trainsub_Sub,method="gbm")
+```
+
+```{r,cache=TRUE}
+#Predict
+p2_mf_1<-predict(mf_2,trainsub_Vali)
+confusionMatrix(p2_mf_1,trainsub_Vali$classe)
+
+```
+
+#Model fit 3: rpart
+```{r,cache=TRUE}
+#loading library
+library(ggplot2)
+library(rpart)   
+library(rattle)  
+library(rpart.plot)  
+#Model fit
+mf_3<-rpart(classe~. ,data=trainsub_Sub, method="class")
+
+#Ploting
+
+fancyRpartPlot(mf_3,main="")
+
+#Predict
+p3_mf_1<-predict(mf_3,trainsub_Vali,type="class")
+confusionMatrix(p3_mf_1,trainsub_Vali$classe)
+
+```
+
+
+#Model Comparison
+The accuracy of three proposed model are shown. I noted the "Random forest"" model provide the best accuracy. So, this model was choose
+```{r,cache=TRUE}
+p1_mf_2<-predict(mf_1,testsub)
+p1_mf_2
+```
+Here the answer to the question!!
+
